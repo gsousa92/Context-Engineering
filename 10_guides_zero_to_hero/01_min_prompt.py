@@ -32,19 +32,24 @@ import time
 import json
 from typing import Dict, List, Any, Tuple, Optional
 import matplotlib.pyplot as plt
+from google import genai
 
-# If you're using OpenAI's API, uncomment these lines and add your API key
-# import openai
-# openai.api_key = os.getenv("OPENAI_API_KEY")  # Set your API key as an environment variable
+# 1. SETUP: Configure your Google API Key
+# Best practice: export GOOGLE_API_KEY='your-key-here' in your terminal
+api_key = os.getenv("GOOGLE_API_KEY")
+if not api_key:
+    raise ValueError("Please set the GOOGLE_API_KEY environment variable.")
+
+client = genai.Client(api_key=api_key)
 
 # If you're using another provider, adjust accordingly
 # Dummy LLM class for demonstration purposes
 class SimpleLLM:
     """Minimal LLM interface for demonstration."""
     
-    def __init__(self, model_name: str = "dummy-model"):
+    def __init__(self, model_name: str = "gemini-1.5-flash"):
         """Initialize LLM interface."""
-        self.model_name = model_name
+        self.model_name = "gemini-2.5-flash"
         self.total_tokens_used = 0
         self.total_requests = 0
         
@@ -54,6 +59,7 @@ class SimpleLLM:
         In production, use the tokenizer specific to your model.
         """
         # This is an extremely rough approximation, use a proper tokenizer in practice
+        return client.models.count_tokens(model=self.model_name, contents={"text": text}).total_tokens
         return len(text.split())
     
     def generate(self, prompt: str) -> str:
@@ -61,20 +67,20 @@ class SimpleLLM:
         Generate text from a prompt (dummy implementation).
         In a real notebook, this would call an actual LLM API.
         """
-        # In a real implementation, this would call the API
-        # response = openai.ChatCompletion.create(
-        #     model="gpt-4",
-        #     messages=[{"role": "user", "content": prompt}]
-        # )
-        # return response.choices[0].message.content
+        # Track input tokens
+        input_tokens = self.count_tokens(prompt)
+        self.total_tokens_used += input_tokens
         
-        # For demo purposes, we'll just acknowledge the prompt
-        tokens = self.count_tokens(prompt)
-        self.total_tokens_used += tokens
-        self.total_requests += 1
+        try:
+            response = client.models.generate_content(model=self.model_name, contents={"text": prompt})
+            # Track output tokens
+            output_tokens = self.count_tokens(response.text)
+            self.total_tokens_used += output_tokens
+            
+            return response.text
+        except Exception as e:
+            return f"Error calling Gemini API: {str(e)}"
         
-        return f"[This is where the LLM response would appear. Your prompt used approximately {tokens} tokens.]"
-    
     def get_stats(self) -> Dict[str, Any]:
         """Return usage statistics."""
         return {
@@ -154,7 +160,7 @@ for i, (x, y) in enumerate(zip(tokens_list, quality_scores)):
                  xytext=(0, 10), ha='center')
 
 # Show the plot (in Jupyter this would display inline)
-# plt.show()
+plt.show()
 print("[A plot would display here in a Jupyter environment]")
 
 # ----- EXPERIMENT 4: MINIMAL CONTEXT ENHANCEMENT -----
